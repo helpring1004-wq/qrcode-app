@@ -26,15 +26,15 @@ export default function QrScanner({ onScanned, onSaveToHistory }: Props) {
     } else if (msg.includes('NotReadable') || msg.includes('Could not start') || msg.includes('busy') || msg.includes('in use')) {
       setError(
         '카메라를 사용할 수 없습니다.\n\n' +
-        '다른 앱(카메라, 카카오톡, 영상통화, 화면 녹화 등)이 카메라를 사용 중일 수 있습니다.\n\n' +
-        '해결 방법:\n' +
-        '1. 다른 앱(특히 카메라 관련 앱)을 모두 닫고 다시 시도하세요.\n' +
-        '2. 핸드폰을 재부팅한 뒤 다시 시도하세요.'
+        '원인 및 해결:\n' +
+        '1. 크롬 인터넷 창(탭)을 모두 닫고 다시 시도하세요.\n' +
+        '2. 다른 앱(카카오톡, 카메라, 영상통화 등)이 카메라를 쓰고 있지 않은지 확인하세요.\n' +
+        '3. 위 방법으로 안 될 경우, 핸드폰을 재부팅한 뒤 다시 시도하세요.'
       )
     } else if (msg.includes('NotFound') || msg.includes('No camera')) {
       setError('카메라를 찾을 수 없습니다.\n이 기기에 카메라가 있는지 확인해주세요.')
     } else {
-      setError('카메라를 시작할 수 없습니다.\n알 수 없는 오류: ' + msg)
+      setError('카메라를 시작할 수 없습니다.\n원인: ' + msg)
     }
     setIsScanning(false)
   }, [])
@@ -44,15 +44,6 @@ export default function QrScanner({ onScanned, onSaveToHistory }: Props) {
     setScanResult(null)
     setIsScanning(true)
     setScanReady(false)
-
-    // 먼저 카메라가 실제로 열리는지 테스트
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-      stream.getTracks().forEach((track) => track.stop())
-    } catch (testErr) {
-      handleCameraError(testErr)
-      return
-    }
 
     requestAnimationFrame(async () => {
       setScanReady(true)
