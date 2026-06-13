@@ -1,6 +1,6 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
 import QrScannerLib from 'qr-scanner'
-import { Camera, CameraOff, ArrowRight, Save, ScanLine } from 'lucide-react'
+import { Camera, CameraOff, ArrowRight, Save, ScanLine, Upload } from 'lucide-react'
 
 interface Props {
   onScanned: (text: string) => void
@@ -52,8 +52,9 @@ export default function QrScanner({ onScanned, onSaveToHistory }: Props) {
       }
       const scanner = new QrScannerLib(
         videoRef.current,
-        (result) => {
-          setScanResult(result.data)
+        (result: string | QrScannerLib.ScanResult) => {
+          const text = typeof result === 'string' ? result : result.data
+          setScanResult(text)
           scanner.stop()
           setIsScanning(false)
         },
@@ -97,6 +98,16 @@ export default function QrScanner({ onScanned, onSaveToHistory }: Props) {
     }
   }, [scanResult, onSaveToHistory])
 
+  const handleFileScan = useCallback(async (file: File) => {
+    setError(null)
+    try {
+      const result = await QrScannerLib.scanImage(file)
+      setScanResult(result)
+    } catch {
+      setError('사진에서 QR 코드를 찾을 수 없습니다.\nQR이 잘 보이는 사진을 선택해주세요.')
+    }
+  }, [])
+
   useEffect(() => {
     return () => {
       scannerRef.current?.stop()
@@ -122,14 +133,29 @@ export default function QrScanner({ onScanned, onSaveToHistory }: Props) {
 
         {!isScanning && !scanResult && (
           <div className="text-center py-8 space-y-4">
-            <p className="text-gray-500 text-sm">휴대폰이나 문서에 있는 QR 코드를 카메라로 스캔합니다.</p>
-            <button
-              onClick={startScan}
-              className="inline-flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors font-medium"
-            >
-              <Camera size={20} />
-              카메라 시작
-            </button>
+            <p className="text-gray-500 text-sm">휴대폰이나 문서에 있는 QR 코드를 카메라로 스캔하거나 사진 업로드로 스캔합니다.</p>
+            <div className="flex flex-wrap justify-center gap-3">
+              <button
+                onClick={startScan}
+                className="inline-flex items-center gap-2 bg-indigo-600 text-white px-5 py-3 rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+              >
+                <Camera size={20} />
+                카메라 시작
+              </button>
+              <label className="inline-flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-5 py-3 rounded-lg hover:bg-gray-50 transition-colors font-medium cursor-pointer">
+                <Upload size={20} />
+                사진 업로드
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) handleFileScan(file)
+                  }}
+                />
+              </label>
+            </div>
           </div>
         )}
 
