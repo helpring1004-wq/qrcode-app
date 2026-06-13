@@ -1,5 +1,5 @@
-import { useRef, useState, useCallback } from 'react'
-import { Html5Qrcode } from 'html5-qrcode'
+import { useRef, useState, useCallback, useEffect } from 'react'
+import QrScannerLib from 'qr-scanner'
 import { Camera, CameraOff, ArrowRight, Save, ScanLine } from 'lucide-react'
 
 interface Props {
@@ -11,10 +11,10 @@ export default function QrScanner({ onScanned, onSaveToHistory }: Props) {
   const [scanResult, setScanResult] = useState<string | null>(null)
   const [isScanning, setIsScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [scanReady, setScanReady] = useState(false)
-  const scannerRef = useRef<Html5Qrcode | null>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const scannerRef = useRef<QrScannerLib | null>(null)
 
-  const handleCameraError = useCallback((raw: unknown) => {
+  const handleError = useCallback((raw: unknown) => {
     const msg = raw instanceof Error ? raw.message : String(raw)
     if (msg.includes('Permission') || msg.includes('denied') || msg.includes('NotAllowed')) {
       setError(
@@ -23,7 +23,7 @@ export default function QrScanner({ onScanned, onSaveToHistory }: Props) {
         '• 안드로이드(크롬): 설정 → 애플리케이션 → Chrome → 권한 → 카메라 허용\n\n' +
         '또는 브라우저 주소창 왼쪽 자물쇠를 눌러 카메라를 허용하세요.'
       )
-    } else if (msg.includes('NotReadable') || msg.includes('Could not start') || msg.includes('busy') || msg.includes('in use')) {
+    } else if (msg.includes('NotReadable') || msg.includes('busy') || msg.includes('in use')) {
       setError(
         '카메라를 사용할 수 없습니다.\n\n' +
         '원인 및 해결:\n' +
@@ -31,7 +31,7 @@ export default function QrScanner({ onScanned, onSaveToHistory }: Props) {
         '2. 다른 앱(카카오톡, 카메라, 영상통화 등)이 카메라를 쓰고 있지 않은지 확인하세요.\n' +
         '3. 위 방법으로 안 될 경우, 핸드폰을 재부팅한 뒤 다시 시도하세요.'
       )
-    } else if (msg.includes('NotFound') || msg.includes('No camera')) {
+    } else if (msg.includes('NotFound') || msg.includes('camera')) {
       setError('카메라를 찾을 수 없습니다.\n이 기기에 카메라가 있는지 확인해주세요.')
     } else {
       setError('카메라를 시작할 수 없습니다.\n원인: ' + msg)
@@ -43,30 +43,31 @@ export default function QrScanner({ onScanned, onSaveToHistory }: Props) {
     setError(null)
     setScanResult(null)
     setIsScanning(true)
-    setScanReady(false)
 
-    requestAnimationFrame(async () => {
-      setScanReady(true)
-      setTimeout(async () => {
-        try {
-          const scanner = new Html5Qrcode('qr-reader')
-          scannerRef.current = scanner
-          await scanner.start(
-            { facingMode: 'environment' },
-            { fps: 10, qrbox: { width: 250, height: 250 } },
-            (decodedText) => {
-              setScanResult(decodedText)
-              scanner.stop().catch(() => {})
-              setIsScanning(false)
-            },
-            () => {}
-          )
-        } catch (err) {
-          handleCameraError(err)
+    try {
+      if (!videoRef.current) {
+        setError('비디오 요소를 찾을 수 없습니다.')
+        setIsScanning(false)
+        return
+      }
+      const scanner = new QrScannerLib(
+        videoRef.current,
+        (result) => {
+          setScanResult(result.data)
+          scanner.stop()
+          setIsScanning(false)
+        },
+        {
+          preferredCamera: 'environment',
+          maxScansPerSecond: 5,
         }
-      }, 200)
-    })
-  }, [handleCameraError])
+      )
+      scannerRef.current = scanner
+      await scanner.start()
+    } catch (err) {
+      handleError(err)
+    }
+  }, [handleError])
 
   const stopScan = useCallback(() => {
     const scanner = scannerRef.current
@@ -74,15 +75,12 @@ export default function QrScanner({ onScanned, onSaveToHistory }: Props) {
       setIsScanning(false)
       return
     }
-    scanner.stop().then(() => {
-      scanner.clear()
+    try {
+      scanner.stop()
+    } finally {
       scannerRef.current = null
       setIsScanning(false)
-    }).catch(() => {
-      scanner.clear()
-      scannerRef.current = null
-      setIsScanning(false)
-    })
+    }
   }, [])
 
   const handleGenerate = useCallback(() => {
@@ -99,6 +97,12 @@ export default function QrScanner({ onScanned, onSaveToHistory }: Props) {
     }
   }, [scanResult, onSaveToHistory])
 
+  useEffect(() => {
+    return () => {
+      scannerRef.current?.stop()
+    }
+  }, [])
+
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-xl shadow p-6 space-y-4">
@@ -107,12 +111,13 @@ export default function QrScanner({ onScanned, onSaveToHistory }: Props) {
           <h2 className="text-lg font-semibold text-gray-800">QR 코드 스캔</h2>
         </div>
 
-        {/* 이 div는 항상 렌더링돼야 함. id 기반으로 scanner가 찾음. */}
-        <div
-          id="qr-reader"
-          className={`w-full max-w-sm mx-auto rounded-lg overflow-hidden border border-gray-200 transition-all ${
+        <video
+          ref={videoRef}
+          className={`w-full max-w-sm mx-auto rounded-lg overflow-hidden border border-gray-200 bg-black transition-all ${
             isScanning ? 'opacity-100 h-auto' : 'opacity-0 h-0 overflow-hidden border-0'
           }`}
+          muted
+          playsInline
         />
 
         {!isScanning && !scanResult && (
@@ -128,7 +133,7 @@ export default function QrScanner({ onScanned, onSaveToHistory }: Props) {
           </div>
         )}
 
-        {isScanning && scanReady && (
+        {isScanning && (
           <div className="text-center">
             <button
               onClick={stopScan}
