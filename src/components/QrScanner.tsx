@@ -20,8 +20,12 @@ export default function QrScanner({ onScanned, onSaveToHistory }: Props) {
       setError(
         '카메라 권한이 차단되었습니다.\n\n' +
         '• iPhone(사파리): 설정 → 사파리 → 카메라 → 허용\n' +
-        '• 안드로이드(크롬): 설정 → 애플리케이션 → Chrome → 권한 → 카메라 허용\n\n' +
-        '또는 브라우저 주소창 왼쪽 자물쇠를 눌러 카메라를 허용하세요.'
+        '• 안드로이드(크롬):\n' +
+        '  1. 크롬 → 설정 → 사이트 설정 → 카메라\n' +
+        '     → "helpring1004-wq.github.io" 찾아서 허용\n' +
+        '  2. 또는 설정 → 애플리케이션 → Chrome\n' +
+        '     → 권한 → 카메라 → 허용\n\n' +
+        '자동으로 차단된 경우, 위 1번 방법으로 직접 허용하셔야 합니다.'
       )
     } else if (msg.includes('NotReadable') || msg.includes('busy') || msg.includes('in use')) {
       setError(
