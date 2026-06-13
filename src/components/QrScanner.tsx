@@ -11,47 +11,47 @@ export default function QrScanner({ onScanned, onSaveToHistory }: Props) {
   const [scanResult, setScanResult] = useState<string | null>(null)
   const [isScanning, setIsScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [scanReady, setScanReady] = useState(false)
   const scannerRef = useRef<Html5Qrcode | null>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
 
   const startScan = useCallback(async () => {
     setError(null)
     setScanResult(null)
+    // 스캐너 초기화에 잠깐 말리기 위해 상태 먼저 트리거
     setIsScanning(true)
+    setScanReady(false)
 
-    // 항상 숨겨진 div를 렌더링해둬서 실제 DOM 요소가 보장됨
-    setTimeout(async () => {
-      try {
-        const el = containerRef.current
-        if (!el) {
-          setError('스캐너 초기화에 실패했습니다.')
+    requestAnimationFrame(async () => {
+      setScanReady(true)
+      // DOM 업데이트 보장 후 실행
+      setTimeout(async () => {
+        try {
+          const scanner = new Html5Qrcode('qr-reader')
+          scannerRef.current = scanner
+          await scanner.start(
+            { facingMode: 'environment' },
+            { fps: 10, qrbox: { width: 250, height: 250 } },
+            (decodedText) => {
+              setScanResult(decodedText)
+              scanner.stop().catch(() => {})
+              setIsScanning(false)
+            },
+            () => {}
+          )
+        } catch {
+          setError('카메라 접근에 실패했습니다. 카메라 권한을 확인해주세요.')
           setIsScanning(false)
-          return
         }
-        // DOM 요소 인스턴스로 전달 (id 문자열 X)
-        const scanner = new Html5Qrcode(el)
-        scannerRef.current = scanner
-
-        await scanner.start(
-          { facingMode: 'environment' },
-          { fps: 10, qrbox: { width: 250, height: 250 } },
-          (decodedText) => {
-            setScanResult(decodedText)
-            scanner.stop().catch(() => {})
-            setIsScanning(false)
-          },
-          () => {} // frame error 무시
-        )
-      } catch {
-        setError('카메라 접근에 실패했습니다. 카메라 권한을 확인해주세요.')
-        setIsScanning(false)
-      }
-    }, 120)
+      }, 200)
+    })
   }, [])
 
   const stopScan = useCallback(() => {
     const scanner = scannerRef.current
-    if (!scanner) return
+    if (!scanner) {
+      setIsScanning(false)
+      return
+    }
     scanner.stop().then(() => {
       scanner.clear()
       scannerRef.current = null
@@ -85,11 +85,11 @@ export default function QrScanner({ onScanned, onSaveToHistory }: Props) {
           <h2 className="text-lg font-semibold text-gray-800">QR 코드 스캔</h2>
         </div>
 
-        {/* 항상 렌더링 - 숨길 때는 height 0 & 투명 */}
+        {/* 이 div는 항상 렌더링돼야 함. id 기반으로 scanner가 찾음. */}
         <div
-          ref={containerRef}
-          className={`w-full max-w-sm mx-auto rounded-lg overflow-hidden border border-gray-200 transition-opacity ${
-            isScanning ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden border-0'
+          id="qr-reader"
+          className={`w-full max-w-sm mx-auto rounded-lg overflow-hidden border border-gray-200 transition-all ${
+            isScanning ? 'opacity-100 h-auto' : 'opacity-0 h-0 overflow-hidden border-0'
           }`}
         />
 
@@ -106,7 +106,7 @@ export default function QrScanner({ onScanned, onSaveToHistory }: Props) {
           </div>
         )}
 
-        {isScanning && (
+        {isScanning && scanReady && (
           <div className="text-center">
             <button
               onClick={stopScan}
