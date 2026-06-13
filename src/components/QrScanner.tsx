@@ -14,16 +14,29 @@ export default function QrScanner({ onScanned, onSaveToHistory }: Props) {
   const [scanReady, setScanReady] = useState(false)
   const scannerRef = useRef<Html5Qrcode | null>(null)
 
+  const handleError = useCallback((err: unknown) => {
+    const msg = err instanceof Error ? err.message : String(err)
+    if (msg.includes('Permission') || msg.includes('denied') || msg.includes('NotAllowedError') || msg.includes('NotAllowed')) {
+      setError(
+        '카메라 권한이 차단되었습니다.\n\n' +
+        '• iPhone(사파리): 설정 → 사파리 → 카메라 → 허용\n' +
+        '• 안드로이드(크롬): 설정 → 애플리케이션 → Chrome → 권한 → 카메라 허용\n\n' +
+        '또는 브라우저 주소창 왼쪽 자물쇠를 눌러 카메라를 허용하세요.'
+      )
+    } else {
+      setError('카메라를 시작할 수 없습니다.\n카메라 권한이 있는지 확인해주세요.')
+    }
+    setIsScanning(false)
+  }, [])
+
   const startScan = useCallback(async () => {
     setError(null)
     setScanResult(null)
-    // 스캐너 초기화에 잠깐 말리기 위해 상태 먼저 트리거
     setIsScanning(true)
     setScanReady(false)
 
     requestAnimationFrame(async () => {
       setScanReady(true)
-      // DOM 업데이트 보장 후 실행
       setTimeout(async () => {
         try {
           const scanner = new Html5Qrcode('qr-reader')
@@ -38,13 +51,12 @@ export default function QrScanner({ onScanned, onSaveToHistory }: Props) {
             },
             () => {}
           )
-        } catch {
-          setError('카메라 접근에 실패했습니다. 카메라 권한을 확인해주세요.')
-          setIsScanning(false)
+        } catch (err) {
+          handleError(err)
         }
       }, 200)
     })
-  }, [])
+  }, [handleError])
 
   const stopScan = useCallback(() => {
     const scanner = scannerRef.current
@@ -153,9 +165,14 @@ export default function QrScanner({ onScanned, onSaveToHistory }: Props) {
         )}
 
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
-            <p className="text-red-600 text-sm">{error}</p>
-            <button onClick={() => setError(null)} className="mt-2 text-sm text-red-700 underline">닫기</button>
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+            <pre className="text-red-600 text-sm whitespace-pre-wrap font-sans">{error}</pre>
+            <button
+              onClick={() => setError(null)}
+              className="mt-3 text-sm text-red-700 underline block mx-auto"
+            >
+              닫기
+            </button>
           </div>
         )}
       </div>
